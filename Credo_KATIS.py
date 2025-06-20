@@ -1,7 +1,6 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QListView, QTreeView, QMessageBox
-from GUI import Ui_MainWindow
+from GUI2 import Ui_MainWindow
 from select_folder import RemoteFolderDialog
-from credo import find_target_folders
 import os
 from dotenv import load_dotenv, set_key
 import threading
@@ -12,46 +11,30 @@ from dateutil import parser
 from PySide6.QtCore import QObject, Signal
 from datetime import datetime
 
-target = {
-    "200G_QSFP56_Gen3_Straight": "200G_Ursula_S cable",
-    "200G_QSFP56_Gen3": "200G_Ursula_S cable",
-    "400G_2xQ56_TO_2xQ56_Gen3": "400G_Ursula_X cable",
-    "400G_QDD_TO_2xQ56_Ursula": "400G_Ursula_Y cable",
-    "400G_QSFP-DD_Gen3": "400G_G3",
-    "400G_QSFP-DD_Ursula_1PPS": "400G_Ursula_S cable",
-}
-
 def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path): #find csv
-    items = sftp.listdir(current_path)
-    for item in items:
-        new_path = f"{current_path}/{item}"
-        if not "." in item:
-            if item.lower().endswith(('_f', '_p')):
-                info = item.split('_')
-                wo = info[0]
-                fp = info[1]
-                #沒資料夾的話產生資料夾
-                try:
-                    sftp.stat(f"/Credo_DTO/EXTRACT DATA_{wo}")
-                except FileNotFoundError:
-                    sftp.mkdir(f"/Credo_DTO/EXTRACT DATA_{wo}")
-                csv_path = f"/Credo_DTO/EXTRACT DATA_{wo}/{wo} REPORT TEMPLATE_{fp}.csv"
-                #collect data
-                all_data = []
-                record_sn = {}
-                find_csv_file(sftp, new_path, all_data, record_sn)
-                # build csv
-                commit_df = pandas.DataFrame(all_data)
-                commit_df.insert(0, 'No.', commit_df.index+1)
-                csv = commit_df.to_csv(index=False)
-                buffer = io.BytesIO(csv.encode('utf-8'))
-                buffer.seek(0)
+    item = current_path.split('/')[-1]
+    info = item.split('_', 1)
+    wo = info[0]
+    fp = info[1]
+    #沒資料夾的話產生資料夾
+    try:
+        sftp.stat(f"/Credo_DTO/EXTRACT DATA_{wo}")
+    except FileNotFoundError:
+        sftp.mkdir(f"/Credo_DTO/EXTRACT DATA_{wo}")
+    csv_path = f"/Credo_DTO/EXTRACT DATA_{wo}/{wo} REPORT TEMPLATE_{fp}.csv"
+    #collect data
+    all_data = []
+    record_sn = {}
+    find_csv_file(sftp, current_path, all_data, record_sn)
+    # build csv
+    commit_df = pandas.DataFrame(all_data)
+    commit_df.insert(0, 'No.', commit_df.index+1)
+    csv = commit_df.to_csv(index=False)
+    buffer = io.BytesIO(csv.encode('utf-8'))
+    buffer.seek(0)
 
-                sftp.putfo(buffer, csv_path)
-                buffer.close()
-            else:
-                if not item.startswith("EXTRACT"):
-                    find_FP_folder(sftp, new_path)
+    sftp.putfo(buffer, csv_path)
+    buffer.close()
 
 def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, record_sn):
     files = sftp.listdir(file_path)
@@ -84,7 +67,6 @@ def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, rec
                     last2 = ensure_datetime(last2)
                     all_data[index]['First Testing Date & Time'] = pick_earlier(first1, first2)
                     all_data[index]['Last Testing Date & Time'] = pick_later(last1, last2)
-
 
 def ensure_datetime(value):
     if value is None:
@@ -209,7 +191,7 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.set_init_data()
-        self.ui.selectFilesLabel.setText("尚未選取資料夾")
+        # self.ui.selectFilesLabel.setText("尚未選取資料夾")
         self.ui.pushButton.setEnabled(False)
         
 
@@ -217,6 +199,7 @@ class MainWindow(QMainWindow):
         self.threads = []
         self.ui.fileFromButton.clicked.connect(self.select_remote_folders)
         self.ui.pushButton.clicked.connect(self.start_extract)
+        self.ui.listWidget.itemDoubleClicked.connect(self.deleteText)
         self.signal_emitter = SignalEmitter()
         self.signal_emitter.all_done.connect(self.on_all_done)
     
@@ -233,10 +216,22 @@ class MainWindow(QMainWindow):
         self.ui.fromPort.setText(os.getenv('PORT', ""))
 
     def setLabelText(self):
-        text = "已選取:\n"
-        files = "\n".join(self.file_paths)
-        text += files
-        self.ui.selectFilesLabel.setText(text)
+        # text = "Choosen:\n"
+        # files = "\n".join(self.file_paths)
+        # text += files
+        # self.ui.selectFilesLabel.setText(text)
+        self.ui.listWidget.clear()
+        for path in self.file_paths:
+            self.ui.listWidget.addItem(path.split('/', 3)[-1])
+
+    def deleteText(self, item):
+        text = f"/Credo_SFTP_PE/Report/{item.text()}"
+        if text in self.file_paths:
+            self.file_paths.remove(text)
+            self.ui.listWidget.takeItem(self.ui.listWidget.row(item))
+        
+        if len(self.file_paths) == 0:
+            self.ui.pushButton.setEnabled(False)
 
     def select_remote_folders(self):
         try:
@@ -261,7 +256,7 @@ class MainWindow(QMainWindow):
     def start_extract(self):
         for file_path in self.file_paths:
             sftp, trans = self.connect_sftp()
-            thread = threading.Thread(target=self.find_target_folders, args=(sftp, file_path))
+            thread = threading.Thread(target=find_FP_folder, args=(sftp, file_path))
             self.threads.append(thread)
             thread.start()
 
@@ -272,29 +267,14 @@ class MainWindow(QMainWindow):
     def wait_all_done(self):
         for thread in self.threads:
             thread.join()
-        self.signal_emitter.all_done.emit()        
+        self.signal_emitter.all_done.emit()     
 
     def on_all_done(self):
         self.file_paths.clear()
-        self.ui.selectFilesLabel.setText("已完成，請重新選取資料夾")
-        self.ui.pushButton.setEnabled(False)
+        # self.ui.selectFilesLabel.setText("Done")
+        self.ui.pushButton.setEnabled(True)
+        self.ui.fileFromButton.setEnabled(True)
 
-    def find_target_folders(self, sftp:paramiko.sftp_client.SFTPClient, current_path): #find target folders
-        inthreads = []
-        items = sftp.listdir(current_path)
-        for item in items:
-            if not "." in item:
-                new_path = f"{current_path}/{item}"
-                if item in target:
-                    sftp2, trans = self.connect_sftp()
-                    thread = threading.Thread(target=find_FP_folder, args=(sftp2, new_path))
-                    inthreads.append(thread)
-                    thread.start()
-                else:
-                    self.find_target_folders(sftp, new_path)
-
-        for inthread in inthreads:
-            inthread.join()
 
 if __name__ == "__main__":
     app = QApplication([])
