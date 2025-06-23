@@ -17,7 +17,7 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QLabel, QListWidget,
     QListWidgetItem, QMainWindow, QPushButton, QSizePolicy,
-    QStatusBar, QTextEdit, QWidget)
+    QStatusBar, QTextEdit, QWidget, QLineEdit)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -33,7 +33,8 @@ class Ui_MainWindow(object):
         self.fromUsername = QTextEdit(self.centralwidget)
         self.fromUsername.setObjectName(u"fromUsername")
         self.fromUsername.setGeometry(QRect(180, 80, 161, 31))
-        self.fromPassword = QTextEdit(self.centralwidget)
+        self.fromPassword = QLineEdit(self.centralwidget)
+        self.fromPassword.setEchoMode(QLineEdit.EchoMode.Password)
         self.fromPassword.setObjectName(u"fromPassword")
         self.fromPassword.setGeometry(QRect(180, 130, 161, 31))
         self.label_2 = QLabel(self.centralwidget)

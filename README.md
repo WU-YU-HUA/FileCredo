@@ -1,0 +1,1 @@
+pyinstaller --noconfirm --noconsole --onefile --name "Test Log Extractor" .\Credo_KATIS.py

@@ -12,16 +12,27 @@ from PySide6.QtCore import QObject, Signal
 from datetime import datetime
 
 def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path): #find csv
-    item = current_path.split('/')[-1]
+    arr_path = current_path.split('/')
+    # print(arr_path)
+    item = arr_path[-1]
+    report_type = arr_path[3]
     info = item.split('_', 1)
     wo = info[0]
     fp = info[1]
-    #沒資料夾的話產生資料夾
-    try:
-        sftp.stat(f"/Credo_DTO/EXTRACT DATA_{wo}")
-    except FileNotFoundError:
-        sftp.mkdir(f"/Credo_DTO/EXTRACT DATA_{wo}")
-    csv_path = f"/Credo_DTO/EXTRACT DATA_{wo}/{wo} REPORT TEMPLATE_{fp}.csv"
+    
+    base_target_dir = f"/Credo_DTO/{report_type}/{wo}"
+    path_components = [comp for comp in base_target_dir.split('/') if comp]
+    current_remote_dir = '/' 
+    for component in path_components:
+        current_remote_dir = current_remote_dir + '/' + component
+        # print(current_remote_dir)
+        try:
+            sftp.stat(current_remote_dir)
+        except FileNotFoundError:
+            sftp.mkdir(current_remote_dir)
+        
+    csv_path = f"{base_target_dir}/{wo} REPORT TEMPLATE_{fp}.csv"
+
     #collect data
     all_data = []
     record_sn = {}
@@ -205,7 +216,7 @@ class MainWindow(QMainWindow):
     
     def connect_sftp(self):
         trans = paramiko.Transport((self.ui.fromIP.toPlainText(), int(self.ui.fromPort.toPlainText())))
-        trans.connect(username=self.ui.fromUsername.toPlainText(), password=self.ui.fromPassword.toPlainText())
+        trans.connect(username=self.ui.fromUsername.toPlainText(), password=self.ui.fromPassword.text())
         sftp = paramiko.SFTPClient.from_transport(trans)
         return sftp, trans
 
@@ -250,7 +261,7 @@ class MainWindow(QMainWindow):
 
         set_key(".env", "IP", self.ui.fromIP.toPlainText())
         set_key(".env", "USERNAME", self.ui.fromUsername.toPlainText())
-        set_key(".env", "PASSWORD", self.ui.fromPassword.toPlainText())
+        set_key(".env", "PASSWORD", self.ui.fromPassword.text())
         set_key(".env", "PORT", self.ui.fromPort.toPlainText())
 
     def start_extract(self):
