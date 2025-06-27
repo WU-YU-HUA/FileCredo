@@ -13,19 +13,17 @@ from datetime import datetime
 
 def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path): #find csv
     arr_path = current_path.split('/')
-    # print(arr_path)
     item = arr_path[-1]
     report_type = arr_path[3]
     info = item.split('_', 1)
     wo = info[0]
     fp = info[1]
-    
+
     base_target_dir = f"/Credo_DTO/{report_type}/{wo}"
     path_components = [comp for comp in base_target_dir.split('/') if comp]
     current_remote_dir = '/' 
     for component in path_components:
         current_remote_dir = current_remote_dir + '/' + component
-        # print(current_remote_dir)
         try:
             sftp.stat(current_remote_dir)
         except FileNotFoundError:
@@ -47,17 +45,20 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path): #find cs
     sftp.putfo(buffer, csv_path)
     buffer.close()
 
-def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, record_sn):
+def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, record_sn, own_sn = ""):
     files = sftp.listdir(file_path)
     for file in files:
         new_path = f"{file_path}/{file}"
 
         if not "." in file: #find folder under FP
-            find_csv_file(sftp, new_path, all_data, record_sn)
+            find_csv_file(sftp, new_path, all_data, record_sn, own_sn=file[:14])
 
         if file.endswith('.csv'): #find csv under FP
             data = read_save_csv(sftp, new_path)
             if data:
+                if own_sn != "":
+                    data['SN'] = own_sn
+
                 if data['SN'] in record_sn:
                     index = record_sn[data['SN']]
                     all_data[index]['Testing Frequency'] += 1
@@ -139,12 +140,17 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path):
 
     if file_path.split('/')[3] in ['05_function_test_report_TST', '10_Pin_test_report']:
         board_sn = ""
-        board_sn_path = file_path.replace('test_log.csv', "all_log.txt")
         try: #以免檔案不存在
-            board_sn = read_board_sn(sftp, board_sn_path)
+            board_sn = read_board_sn(sftp, file_path.replace('test_log.csv', "all_log.txt"))
         except:
             pass
         
+        if board_sn == "":
+            try:
+                board_sn = read_board_sn(sftp, file_path.replace('test_log.csv', "log.txt"))
+            except:
+                pass
+
         data_ = {
             "SN": sn,
             "Part Number": part_num,
@@ -227,10 +233,6 @@ class MainWindow(QMainWindow):
         self.ui.fromPort.setText(os.getenv('PORT', ""))
 
     def setLabelText(self):
-        # text = "Choosen:\n"
-        # files = "\n".join(self.file_paths)
-        # text += files
-        # self.ui.selectFilesLabel.setText(text)
         self.ui.listWidget.clear()
         for path in self.file_paths:
             self.ui.listWidget.addItem(path.split('/', 3)[-1])
@@ -282,7 +284,7 @@ class MainWindow(QMainWindow):
 
     def on_all_done(self):
         self.file_paths.clear()
-        # self.ui.selectFilesLabel.setText("Done")
+        self.ui.listWidget.clear()
         self.ui.pushButton.setEnabled(True)
         self.ui.fileFromButton.setEnabled(True)
 
