@@ -34,7 +34,7 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path): #find cs
     #collect data
     all_data = []
     record_sn = {}
-    find_csv_file(sftp, current_path, all_data, record_sn)
+    find_csv_file(sftp=sftp, file_path=current_path, all_data=all_data, record_sn=record_sn, fp=fp)
     # build csv
     commit_df = pandas.DataFrame(all_data)
     commit_df.insert(0, 'No.', commit_df.index+1)
@@ -45,16 +45,16 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path): #find cs
     sftp.putfo(buffer, csv_path)
     buffer.close()
 
-def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, record_sn, own_sn = ""):
+def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, record_sn, fp, own_sn = ""):
     files = sftp.listdir(file_path)
     for file in files:
         new_path = f"{file_path}/{file}"
 
         if not "." in file: #find folder under FP
-            find_csv_file(sftp, new_path, all_data, record_sn, own_sn=file[:14])
+            find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=file[:14])
 
         if file.endswith('.csv'): #find csv under FP
-            data = read_save_csv(sftp, new_path)
+            data = read_save_csv(sftp, new_path, fp)
             if data:
                 if own_sn != "":
                     data['SN'] = own_sn
@@ -62,6 +62,8 @@ def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, rec
                 if data['SN'] in record_sn:
                     index = record_sn[data['SN']]
                     all_data[index]['Testing Frequency'] += 1
+                    if any("Error Message" in key for key in data):
+                        all_data[index]['Error Message'] += data['Error Message']
                 else:
                     record_sn[data['SN']] = len(all_data)
                     all_data.append(data) 
@@ -103,7 +105,7 @@ def pick_later(a, b):
 
     return max(a, b)
                            
-def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path):
+def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
     if sftp.stat(file_path).st_size == 0:
         return None
     
@@ -130,27 +132,53 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path):
     script = find_index_data(csv_data, col_script)
     sn = file_path.split('/')[-1].split('_')[0]
 
-    data_ = {
-        "SN": sn,
-        "Part Number": part_num,
-        "Script": script,
-        "Testing Frequency": 1,
-        "Testing Date & Time": test_time
-    }
+    # data_ = {
+    #     "SN": sn,
+    #     "Part Number": part_num,
+    #     "Script": script,
+    #     "Testing Frequency": 1,
+    #     "Testing Date & Time": test_time
+    # }
 
-    if file_path.split('/')[3] in ['05_function_test_report_TST', '10_Pin_test_report']:
-        board_sn = ""
-        try: #以免檔案不存在
-            board_sn = read_board_sn(sftp, file_path.replace('test_log.csv', "all_log.txt"))
+    # if file_path.split('/')[3] in ['05_function_test_report_TST', '10_Pin_test_report']:
+    #Get Board SN
+    board_sn = ""
+    try: #以免檔案不存在
+        board_sn = read_board_sn(sftp, file_path.replace('test_log.csv', "all_log.txt"))
+    except:
+        pass
+    
+    if board_sn == "":
+        try:
+            board_sn = read_board_sn(sftp, file_path.replace('test_log.csv', "log.txt"))
         except:
             pass
-        
-        if board_sn == "":
+    
+    #Get Error Message
+    if fp.lower() == 'f':
+        err_msg = ""
+        try:
+            err_msg = get_err_msg(sftp, file_path.replace('test_log.csv', "all_log.txt"))
+        except:
+            pass
+
+        if err_msg == "":
             try:
-                board_sn = read_board_sn(sftp, file_path.replace('test_log.csv', "log.txt"))
+                err_msg = get_err_msg(sftp, file_path.replace('test_log.csv', "log.txt"))
             except:
                 pass
-
+    
+        data_ = {
+            "SN": sn,
+            "Part Number": part_num,
+            "Script": script,
+            "Testing Frequency": 1,
+            "First Testing Date & Time": test_time,
+            "Last Testing Date & Time" : test_time,
+            "Board SN": board_sn,
+            "Error Message": err_msg
+        }
+    else:
         data_ = {
             "SN": sn,
             "Part Number": part_num,
@@ -176,6 +204,18 @@ def read_board_sn(sftp:paramiko.sftp_client.SFTPClient, file_path):
             except:
                 sn = ""
     return sn
+
+def get_err_msg(sftp:paramiko.sftp_client.SFTPClient, file_path):
+    err_msg = []
+    with sftp.open(file_path, 'r') as file:
+        content = file.read().decode('utf-8')
+        contents = content.split('\n')
+        file.close()
+
+    for content in contents:
+        if content.startswith('[Err ]'):
+            err_msg.append(content)
+    return "\n".join(err_msg)
 
 def find_column_index(df, target):
     matches = df[df == target]
