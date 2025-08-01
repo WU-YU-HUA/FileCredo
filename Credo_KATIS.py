@@ -11,7 +11,7 @@ from dateutil import parser
 from PySide6.QtCore import QObject, Signal
 from datetime import datetime
 
-def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path): #find csv
+def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path, trans): #find csv
     arr_path = current_path.split('/')
     item = arr_path[-1]
     report_type = arr_path[3]
@@ -44,6 +44,8 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path): #find cs
 
     sftp.putfo(buffer, csv_path)
     buffer.close()
+    sftp.close()
+    trans.close()
 
 def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, record_sn, fp, own_sn = ""):
     files = sftp.listdir(file_path)
@@ -309,7 +311,7 @@ class MainWindow(QMainWindow):
     def start_extract(self):
         for file_path in self.file_paths:
             sftp, trans = self.connect_sftp()
-            thread = threading.Thread(target=find_FP_folder, args=(sftp, file_path))
+            thread = threading.Thread(target=find_FP_folder, args=(sftp, file_path, trans))
             self.threads.append(thread)
             thread.start()
 
