@@ -66,6 +66,10 @@ def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, rec
                     all_data[index]['Testing Frequency'] += 1
                     if any("Error Message" in key for key in data):
                         all_data[index]['Error Message'] += data['Error Message']
+                    if not all_data[index]['Board SN']:
+                        all_data[index]['Board SN'] = data['Board SN']
+                    if not all_data[index]['Vendor SN']:
+                        all_data[index]['Vendor SN'] = data['Vendor SN']
                 else:
                     record_sn[data['SN']] = len(all_data)
                     all_data.append(data) 
@@ -133,26 +137,17 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
     test_time = find_index_data(csv_data, col_time)
     script = find_index_data(csv_data, col_script)
     sn = file_path.split('/')[-1].split('_')[0]
-
-    # data_ = {
-    #     "SN": sn,
-    #     "Part Number": part_num,
-    #     "Script": script,
-    #     "Testing Frequency": 1,
-    #     "Testing Date & Time": test_time
-    # }
-
-    # if file_path.split('/')[3] in ['05_function_test_report_TST', '10_Pin_test_report']:
     #Get Board SN
     board_sn = ""
+    vendor_sn = ""
     try: #以免檔案不存在
-        board_sn = read_board_sn(sftp, file_path.replace('test_log.csv', "all_log.txt"))
+        board_sn, vendor_sn = read_board_vendor_sn(sftp, file_path.replace('test_log.csv', "all_log.txt"))
     except:
         pass
     
     if board_sn == "":
         try:
-            board_sn = read_board_sn(sftp, file_path.replace('test_log.csv', "log.txt"))
+            board_sn, _ = read_board_vendor_sn(sftp, file_path.replace('test_log.csv', "log.txt"))
         except:
             pass
     
@@ -178,7 +173,8 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             "First Testing Date & Time": test_time,
             "Last Testing Date & Time" : test_time,
             "Board SN": board_sn,
-            "Error Message": err_msg
+            "Error Message": err_msg,
+            "Vendor SN": vendor_sn
         }
     else:
         data_ = {
@@ -188,13 +184,15 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             "Testing Frequency": 1,
             "First Testing Date & Time": test_time,
             "Last Testing Date & Time" : test_time,
-            "Board SN": board_sn
+            "Board SN": board_sn,
+            "Vendor SN": vendor_sn
         }
     
     return data_
 
-def read_board_sn(sftp:paramiko.sftp_client.SFTPClient, file_path):
+def read_board_vendor_sn(sftp:paramiko.sftp_client.SFTPClient, file_path):
     sn = ""
+    vendor_sn = ""
     with sftp.open(file_path, 'r') as file:
         content = file.read().decode('utf-8')
         contents = content.split('\n')
@@ -205,7 +203,13 @@ def read_board_sn(sftp:paramiko.sftp_client.SFTPClient, file_path):
                 sn = content.split('|')[2].strip()
             except:
                 sn = ""
-    return sn
+        
+        if "VendorSN" in content:
+            try:
+                vendor_sn = content.split("VendorSN:")[1].split("PCBA_SN")[0].strip()
+            except:
+                vendor_sn = ""
+    return sn, vendor_sn
 
 def get_err_msg(sftp:paramiko.sftp_client.SFTPClient, file_path):
     err_msg = []
