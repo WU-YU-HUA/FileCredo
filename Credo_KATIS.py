@@ -53,7 +53,10 @@ def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, rec
         new_path = f"{file_path}/{file}"
 
         if not "." in file: #find folder under FP
-            find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=file[:14])
+            if own_sn == "":
+                find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=file[:14])
+            else:
+                find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=own_sn)
 
         if file.endswith('.csv'): #find csv under FP
             data = read_save_csv(sftp, new_path, fp)
@@ -68,8 +71,8 @@ def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, rec
                         all_data[index]['Error Message'] += data['Error Message']
                     if not all_data[index]['Board SN']:
                         all_data[index]['Board SN'] = data['Board SN']
-                    if not all_data[index]['Vendor SN']:
-                        all_data[index]['Vendor SN'] = data['Vendor SN']
+                    if not all_data[index]['Log SN']:
+                        all_data[index]['Log SN'] = data['Log SN']
                 else:
                     record_sn[data['SN']] = len(all_data)
                     all_data.append(data) 
@@ -174,7 +177,7 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             "Last Testing Date & Time" : test_time,
             "Board SN": board_sn,
             "Error Message": err_msg,
-            "Vendor SN": vendor_sn
+            "Log SN": vendor_sn
         }
     else:
         data_ = {
@@ -185,7 +188,7 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             "First Testing Date & Time": test_time,
             "Last Testing Date & Time" : test_time,
             "Board SN": board_sn,
-            "Vendor SN": vendor_sn
+            "Log SN": vendor_sn
         }
     
     return data_
