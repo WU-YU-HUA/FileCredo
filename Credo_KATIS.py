@@ -18,8 +18,10 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path, trans): #
     info = item.split('_', 1)
     wo = info[0]
     fp = info[1]
-
-    base_target_dir = f"/Credo_DTO/{report_type}/{wo}"
+    if arr_path[3] == "13_1pps_test_report":
+        base_target_dir = f"/Credo_DTO/{report_type}/{arr_path[4]}/{wo}"
+    else:
+        base_target_dir = f"/Credo_DTO/{report_type}/{wo}"
     path_components = [comp for comp in base_target_dir.split('/') if comp]
     current_remote_dir = '/' 
     for component in path_components:
@@ -28,7 +30,7 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path, trans): #
             sftp.stat(current_remote_dir)
         except FileNotFoundError:
             sftp.mkdir(current_remote_dir)
-        
+    
     csv_path = f"{base_target_dir}/{wo} REPORT TEMPLATE_{fp}.csv"
 
     #collect data
@@ -94,9 +96,12 @@ def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, rec
 def ensure_datetime(value):
     if value is None:
         return None
-    if isinstance(value, datetime):
-        return value
-    return parser.parse(value)
+    try:
+        if isinstance(value, datetime):
+            return value
+        return parser.parse(value)
+    except:
+        return None
 
 def pick_earlier(a, b):
     if a is None:
