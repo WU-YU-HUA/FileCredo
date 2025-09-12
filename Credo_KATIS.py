@@ -56,7 +56,7 @@ def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, rec
 
         if not "." in file: #find folder under FP
             if own_sn == "":
-                find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=file[:14])
+                find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=file[:15])
             else:
                 find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=own_sn)
 
@@ -175,6 +175,7 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
     
         data_ = {
             "SN": sn,
+            "Log SN": vendor_sn,
             "Part Number": part_num,
             "Script": script,
             "Testing Frequency": 1,
@@ -182,18 +183,17 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             "Last Testing Date & Time" : test_time,
             "Board SN": board_sn,
             "Error Message": err_msg,
-            "Log SN": vendor_sn
         }
     else:
         data_ = {
             "SN": sn,
+            "Log SN": vendor_sn,
             "Part Number": part_num,
             "Script": script,
             "Testing Frequency": 1,
             "First Testing Date & Time": test_time,
             "Last Testing Date & Time" : test_time,
-            "Board SN": board_sn,
-            "Log SN": vendor_sn
+            "Board SN": board_sn,     
         }
     
     return data_
@@ -214,7 +214,7 @@ def read_board_vendor_sn(sftp:paramiko.sftp_client.SFTPClient, file_path):
         
         if "VendorSN" in content:
             try:
-                vendor_sn = content.split("VendorSN:")[1].split("PCBA_SN")[0].strip()
+                vendor_sn = content.split("VendorSN:")[1].split("PCBA_SN")[0].strip().split('-')[0]
             except:
                 vendor_sn = ""
     return sn, vendor_sn
