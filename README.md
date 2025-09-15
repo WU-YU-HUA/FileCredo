@@ -3,3 +3,6 @@ pyinstaller --noconfirm --noconsole --onefile --name "Test Log Extractor" .\Cred
 
 # Google Drive Tutorial
 https://docs.google.com/presentation/d/1LJTLxaF-eHbOcDzfGSt_cr8vDIF0nx9kEoc1pRMOKL4/edit?usp=drive_link
+
+# Google Drive Upload Folder
+https://drive.google.com/drive/u/0/folders/18lFRpFD8hJvKahbntrw7FNwOjicvakzJ
