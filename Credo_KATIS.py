@@ -158,7 +158,9 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             board_sn, _ = read_board_vendor_sn(sftp, file_path.replace('test_log.csv', "log.txt"))
         except:
             pass
-    
+        if vendor_sn == "":
+            vendor_sn = _
+        
     #Get Error Message
     if fp.lower() == 'f':
         err_msg = ""
@@ -217,6 +219,13 @@ def read_board_vendor_sn(sftp:paramiko.sftp_client.SFTPClient, file_path):
                 vendor_sn = content.split("VendorSN:")[1].split("PCBA_SN")[0].strip().split('-')[0]
             except:
                 vendor_sn = ""
+
+        if "Vendor SN" in content and vendor_sn == "":#11_MIS
+            try:
+                vendor_sn = content.split("'")[1].split("-")[0].strip()
+            except:
+                vendor_sn = ""
+
     return sn, vendor_sn
 
 def get_err_msg(sftp:paramiko.sftp_client.SFTPClient, file_path):
