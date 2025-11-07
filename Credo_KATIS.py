@@ -148,6 +148,7 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
     #Get Board SN
     board_sn = ""
     vendor_sn = ""
+    _ = ""
     try: #以免檔案不存在
         board_sn, vendor_sn = read_board_vendor_sn(sftp, file_path.replace('test_log.csv', "all_log.txt"))
     except:
@@ -187,6 +188,7 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             "Error Message": err_msg,
         }
     else:
+        #origin
         data_ = {
             "SN": sn,
             "Log SN": vendor_sn,
@@ -197,7 +199,14 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             "Last Testing Date & Time" : test_time,
             "Board SN": board_sn,     
         }
-    
+        #latency
+        if "1pps_latency_report" in file_path.split('/'):
+            latency = read_latency(sftp, file_path.replace('test_log.csv', "log.txt"))
+            data_["Latency_1"] = latency[0]
+            data_["Latency_2"] = latency[1]
+            data_["Latency_3"] = latency[2]
+            data_["Latency_4"] = latency[3]
+
     return data_
 
 def read_board_vendor_sn(sftp:paramiko.sftp_client.SFTPClient, file_path):
@@ -227,6 +236,20 @@ def read_board_vendor_sn(sftp:paramiko.sftp_client.SFTPClient, file_path):
                 vendor_sn = ""
 
     return sn, vendor_sn
+
+def read_latency(sftp:paramiko.sftp_client.SFTPClient, file_path):
+    with sftp.open(file_path, 'r') as file:
+        content = file.read().decode('utf-8')
+        contents = content.split('\n')
+        file.close()
+    latency = [""] * 4
+    i = 0
+    for content in contents:
+        if "1pps delay =" in content:
+            latency[i] = content.split("=")[1].strip()
+            i = (i + 1) % 4
+    
+    return latency
 
 def get_err_msg(sftp:paramiko.sftp_client.SFTPClient, file_path):
     err_msg = []
@@ -287,6 +310,7 @@ class MainWindow(QMainWindow):
         trans = paramiko.Transport((self.ui.fromIP.toPlainText(), int(self.ui.fromPort.toPlainText())))
         trans.connect(username=self.ui.fromUsername.toPlainText(), password=self.ui.fromPassword.text())
         sftp = paramiko.SFTPClient.from_transport(trans)
+        trans.set_keepalive(30)
         return sftp, trans
 
     def set_init_data(self):
@@ -330,6 +354,14 @@ class MainWindow(QMainWindow):
         set_key(".env", "PORT", self.ui.fromPort.toPlainText())
 
     def start_extract(self):
+        self.ui.pushButton.setEnabled(False)
+        self.ui.fileFromButton.setEnabled(False)
+        self.ui.fromIP.setEnabled(False)
+        self.ui.fromPassword.setEnabled(False)
+        self.ui.fromPort.setEnabled(False)
+        self.ui.fromUsername.setEnabled(False)
+        self.ui.listWidget.setEnabled(False)
+
         for file_path in self.file_paths:
             sftp, trans = self.connect_sftp()
             thread = threading.Thread(target=find_FP_folder, args=(sftp, file_path, trans))
@@ -337,9 +369,7 @@ class MainWindow(QMainWindow):
             thread.start()
 
         threading.Thread(target=self.wait_all_done).start()
-        self.ui.pushButton.setEnabled(False)
-        self.ui.fileFromButton.setEnabled(False)
-
+        
     def wait_all_done(self):
         for thread in self.threads:
             thread.join()
@@ -350,6 +380,12 @@ class MainWindow(QMainWindow):
         self.ui.listWidget.clear()
         self.ui.pushButton.setEnabled(True)
         self.ui.fileFromButton.setEnabled(True)
+
+        self.ui.fromIP.setEnabled(False)
+        self.ui.fromPassword.setEnabled(False)
+        self.ui.fromPort.setEnabled(False)
+        self.ui.fromUsername.setEnabled(False)
+        self.ui.listWidget.setEnabled(False)
 
 
 if __name__ == "__main__":
