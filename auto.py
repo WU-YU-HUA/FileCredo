@@ -29,7 +29,6 @@ def connect_sftp():
     return sftp, trans
 
 def build_path(path:str):
-    print("Build", path)
     ssh = None
     sftp = None
     trans = None
@@ -96,9 +95,9 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path, trans): #
     wo = info[0]
     fp = info[1]
     if arr_path[3] == "13_1pps_test_report":
-        base_target_dir = f"/Credo_DTO/{report_type}/{arr_path[4]}/{wo}"
+        base_target_dir = f"/Credo_DTO/{report_type}/{arr_path[4]}/{wo}" #/Credo_DTO_Auto/Result
     else:
-        base_target_dir = f"/Credo_DTO/{report_type}/{wo}"
+        base_target_dir = f"/Credo_DTO/{report_type}/{wo}" #/Credo_DTO_Auto/Result
     path_components = [comp for comp in base_target_dir.split('/') if comp]
     current_remote_dir = '/' 
     for component in path_components:
@@ -115,13 +114,13 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path, trans): #
     record_sn = {}
     find_csv_file(sftp=sftp, file_path=current_path, all_data=all_data, record_sn=record_sn, fp=fp)
     # build csv
-    commit_df = pandas.DataFrame(all_data)
-    commit_df.insert(0, 'No.', commit_df.index+1)
-    csv = commit_df.to_csv(index=False)
-    buffer = io.BytesIO(csv.encode('utf-8'))
-    buffer.seek(0)
-
-    sftp.putfo(buffer, csv_path)
+    if all_data:
+        commit_df = pandas.DataFrame(all_data)
+        commit_df.insert(0, 'No.', commit_df.index+1)
+        csv = commit_df.to_csv(index=False)
+        buffer = io.BytesIO(csv.encode('utf-8'))
+        buffer.seek(0)
+        sftp.putfo(buffer, csv_path)
     buffer.close()
     sftp.close()
     trans.close()
@@ -170,12 +169,12 @@ def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, rec
                         all_data[index]['First Testing Date & Time'] = pick_earlier(first1, first2)
                         all_data[index]['Last Testing Date & Time'] = pick_later(last1, last2)
 
-            new_file = new_path.replace("/Credo_SFTP_PE/Report", "/Credo_DTO_Auto/Extracted_Log")
+            new_file = new_path.replace("/Credo_DTO_Auto/Report", "/Credo_DTO_Auto/Extracted_Log")
             try:
-                sftp.rename(oldpath=file, newpath=new_file)
+                sftp.rename(oldpath=new_path, newpath=new_file)
             except:
-                build_path(file_path.replace("/Credo_SFTP_PE/Report", "/Credo_DTO_Auto/Extracted_Log"))
-                sftp.rename(oldpath=file, newpath=new_file)
+                build_path(file_path.replace("/Credo_DTO_Auto/Report", "/Credo_DTO_Auto/Extracted_Log"))
+                sftp.rename(oldpath=new_path, newpath=new_file)
 
 def ensure_datetime(value):
     if value is None:
