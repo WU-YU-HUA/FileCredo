@@ -73,6 +73,8 @@ def find_target(sftp:paramiko.sftp_client.SFTPClient, cur_path, trans):
 
                 if path.lower().endswith(("_p", "_f")):
                     find_FP_folder(sftp2, path, trans2)
+                elif path.lower().endswith(("_p_r", "_f_r")):
+                    pass
                 else:
                     thread = threading.Thread(target=find_target, args=(sftp2, path, trans2))
                     threads.append(thread)
@@ -95,9 +97,9 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path, trans): #
     wo = info[0]
     fp = info[1]
     if arr_path[3] == "13_1pps_test_report":
-        base_target_dir = f"/Credo_DTO/{report_type}/{arr_path[4]}/{wo}" #/Credo_DTO_Auto/Result
+        base_target_dir = f"/Credo_DTO_Auto/Result/{report_type}/{arr_path[4]}/{wo}" 
     else:
-        base_target_dir = f"/Credo_DTO/{report_type}/{wo}" #/Credo_DTO_Auto/Result
+        base_target_dir = f"/Credo_DTO_Auto/Result/{report_type}/{wo}" 
     path_components = [comp for comp in base_target_dir.split('/') if comp]
     current_remote_dir = '/' 
     for component in path_components:
