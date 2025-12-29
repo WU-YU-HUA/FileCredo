@@ -1,73 +1,50 @@
-from dotenv import load_dotenv, set_key
-import threading
 import paramiko
-import pandas
-import io
-from dateutil import parser
-from datetime import datetime
-import posixpath
-import stat
 
-file = "/Credo_SFTP_PE/Report/10_Pin_test_report_Prod/400G_QDD_TO_2xQ56_Ursula/961400000001_P/MB4X2155130277/"
-# parts = file.strip("/").split("/")
-# full_paths = [posixpath.join(*parts[:i+1]) for i in range(len(parts))]
-# for path in reversed(full_paths):
-#     print(path)
+SSH_ROOT = "/volume1"
+report_path = "/Credo_DTO_Auto/Report/"
+extracted_path = "/Credo_DTO_Auto/Extracted_Log/"
+result_path = "/Credo_DTO_Auto/Result/"
 
-#Remote Relative
-def remote_dir_exists(sftp, path: str) -> bool:
-    try:
-        return stat_isdir(sftp.stat(path))
-    except FileNotFoundError:
-        return False
-    except IOError:
-        return False
+def connect_ssh(host="10.31.2.10", port=5207, username="harry_wu_dto", password="B4YT8+XL_:YA[SRe"):
+    # 建立 SSHClient
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # 自動加入新主機 key
 
-def stat_isdir(st):
-    """檢查 stat 回傳結果是否為資料夾"""
-    return stat.S_ISDIR(st.st_mode)
+    # 連線
+    ssh.connect(hostname=host, port=port, username=username, password=password)
 
+    return ssh
 def connect_sftp():
     trans = paramiko.Transport(("10.31.2.10", 22))
-    trans.connect(username="harry_wu", password="H@rrywu201314nana")
+    trans.connect(username="harry_wu_dto", password="B4YT8+XL_:YA[SRe")
     sftp = paramiko.SFTPClient.from_transport(trans)
     trans.set_keepalive(30)
     return sftp, trans
 
-def build_path(path:str):
-    ssh = None
-    sftp = None
-    trans = None
-    try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect("10.31.2.10", port=5207, username="harry_wu", password="H@rrywu201314nana")
-        cmd = f"mkdir -p '{path}'"
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-        err = stderr.read().decode().strip()
-        if err:
-            raise Exception(err)
-    except Exception as e:
-        sftp, trans = connect_sftp()
-        parts = path.strip("/").split("/")
-        full_paths = [posixpath.join(*parts[:i+1]) for i in range(len(parts))]
-        null_paths = []
-        for full_path in reversed(full_paths):
-            if remote_dir_exists(sftp, full_path):
-                break
-            else:
-                null_paths.append(full_path)
+def ssh_command(ssh:paramiko.SSHClient, command:str):
+    stdin, stdout, stderr = ssh.exec_command(command)
+    print(stdout.read().decode())
+    print(stderr.read().decode())
+# 使用範例
+ssh_client = connect_ssh()
+sftp, trans = connect_sftp()
+report = sftp.listdir(report_path)
+print(report)
 
-        for null_path in reversed(null_paths):
-            sftp.mkdir(null_path)
-    finally:
-        if ssh:
-            ssh.close()
-        if sftp:
-            sftp.close()
-        if trans:
-            trans.close()
+# stdin, stdout, stderr = ssh_client.exec_command(f'find {SSH_ROOT}{report_path}10_Pin_test_report -type f -name "*.csv"')
+# output = stdout.read().decode()
+# outputs = output.splitlines()
+# print(len(outputs))
+path = "/Credo_DTO_Auto/Extracted_Log/06_pc_test_report/400G_QDD_TO_2xQ56_Ursula/961400593780_P/MB4X215432000A/20240823_13_25_13/MB4X215432000A_20240823_13_25_13_pc_data.csv"
+new_path = path.replace("Extracted_Log", "New")
+dir = new_path.rsplit("/", 1)[0]
+cmd = f"""
+mkdir -p {dir}
+mv {SSH_ROOT}{path} {SSH_ROOT}{new_path}
+"""
+ssh_command(ssh_client, cmd)
 
-file = file.replace("/Credo_SFTP_PE/Report", "/Credo_DTO_Auto/Extracted_Log")
-print(file)
-build_path(file)
+# 關閉連線
+sftp.close()
+trans.close()
+ssh_client.close()

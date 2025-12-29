@@ -28,10 +28,8 @@ def connect_sftp():
     trans.set_keepalive(30)
     return sftp, trans
 
-def build_path(path:str):
+def build_path(path:str, sftp):
     ssh = None
-    sftp = None
-    trans = None
     try:
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -42,7 +40,6 @@ def build_path(path:str):
         if err:
             raise Exception(err)
     except Exception as e:
-        sftp, trans = connect_sftp()
         parts = path.strip("/").split("/")
         full_paths = [posixpath.join(*parts[:i+1]) for i in range(len(parts))]
         null_paths = []
@@ -57,10 +54,7 @@ def build_path(path:str):
     finally:
         if ssh:
             ssh.close()
-        if sftp:
-            sftp.close()
-        if trans:
-            trans.close()
+
 
 #Work Relative
 def find_target(sftp:paramiko.sftp_client.SFTPClient, cur_path, trans):
@@ -123,7 +117,7 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path, trans): #
         buffer = io.BytesIO(csv.encode('utf-8'))
         buffer.seek(0)
         sftp.putfo(buffer, csv_path)
-    buffer.close()
+        buffer.close()
     sftp.close()
     trans.close()
 
@@ -175,7 +169,7 @@ def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, rec
             try:
                 sftp.rename(oldpath=new_path, newpath=new_file)
             except:
-                build_path(file_path.replace("/Credo_DTO_Auto/Report", "/Credo_DTO_Auto/Extracted_Log"))
+                build_path(file_path.replace("/Credo_DTO_Auto/Report", "/Credo_DTO_Auto/Extracted_Log"), sftp)
                 sftp.rename(oldpath=new_path, newpath=new_file)
 
 def ensure_datetime(value):

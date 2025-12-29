@@ -10,6 +10,7 @@ import io
 from dateutil import parser
 from PySide6.QtCore import QObject, Signal
 from datetime import datetime
+import re
 
 def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path, trans): #find csv
     arr_path = current_path.split('/')
@@ -161,7 +162,9 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             pass
         if vendor_sn == "":
             vendor_sn = _
-        
+    #Get FW Ver & MCU Hash
+    fw, mcu = read_fwver_mcuhash(sftp, file_path.replace('test_log.csv', "log.txt"))
+
     #Get Error Message
     if fp.lower() == 'f':
         err_msg = ""
@@ -186,6 +189,8 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             "Last Testing Date & Time" : test_time,
             "Board SN": board_sn,
             "Error Message": err_msg,
+            "FW Ver": fw,
+            "MCU Hash": mcu
         }
     else:
         #origin
@@ -197,7 +202,9 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             "Testing Frequency": 1,
             "First Testing Date & Time": test_time,
             "Last Testing Date & Time" : test_time,
-            "Board SN": board_sn,     
+            "Board SN": board_sn,  
+            "FW Ver": fw,
+            "MCU Hash": mcu   
         }
         #latency
         if "1pps_latency_report" in file_path.split('/'):
@@ -238,18 +245,46 @@ def read_board_vendor_sn(sftp:paramiko.sftp_client.SFTPClient, file_path):
     return sn, vendor_sn
 
 def read_latency(sftp:paramiko.sftp_client.SFTPClient, file_path):
-    with sftp.open(file_path, 'r') as file:
-        content = file.read().decode('utf-8')
-        contents = content.split('\n')
-        file.close()
-    latency = [""] * 4
-    i = 0
-    for content in contents:
-        if "1pps delay =" in content:
-            latency[i] = content.split("=")[1].strip()
-            i = (i + 1) % 4
+    try:
+        with sftp.open(file_path, 'r') as file:
+            content = file.read().decode('utf-8')
+            contents = content.split('\n')
+            file.close()
+        latency = [""] * 4
+        i = 0
+        for content in contents:
+            if "1pps delay =" in content:
+                latency[i] = content.split("=")[1].strip()
+                i = (i + 1) % 4
+    except:
+        latency = [""] * 4
     
     return latency
+
+def read_fwver_mcuhash(sftp:paramiko.sftp_client.SFTPClient, file_path):
+    fw = ""
+    mcu = ""
+    try:
+        with sftp.open(file_path, 'r') as file:
+            content = file.read().decode('utf-8')
+            contents = content.split('\n')
+            file.close()
+        for content in contents:
+            if all(key in content for key in ("FW Ver", "MCU Hash", "B/E Hash")):
+                #SN:BX2X22X31004P-T1 PCBA_SN:ST21AEB31100718 FW Ver:AZ_1.8.1 MCU Hash:5BEF8C B/E Hash:A9A7BF B/E CRC:7D5A
+                fw_match = re.search(r"FW Ver:([\S]+)", content)
+                mcu_match = re.search(r"MCU Hash:([\S]+)", content)
+
+                if fw_match:
+                    fw = fw_match.group(1)
+
+                if mcu_match:
+                    mcu = mcu_match.group(1)
+            
+                if fw != "" and mcu != "":
+                    break
+    finally:
+        return fw, mcu
 
 def get_err_msg(sftp:paramiko.sftp_client.SFTPClient, file_path):
     err_msg = []
