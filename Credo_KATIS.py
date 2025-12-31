@@ -57,7 +57,12 @@ def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, rec
 
         if not "." in file: #find folder under FP
             if own_sn == "":
-                find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=file[:15])
+                names = ["200G_QSFP56_Gen3_Straight", "400G_2xQ56_TO_2xQ56_Gen3", "400G_QDD_TO_2xQ56_Ursula",
+                 "400G_QSFP-DD_Ursula_1PPS", "800G_2xQDD_TO_2xQDD_Ursula_1PPS"]
+                if '06_pc_test_report' in file_path and any(name in file_path for name in names):
+                    find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=file[:14])
+                else:
+                    find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=file[:15])
             else:
                 find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=own_sn)
 
