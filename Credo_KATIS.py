@@ -52,9 +52,10 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path, trans): #
 
 def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, record_sn, fp, own_sn = ""):
     files = sftp.listdir(file_path)
+    #紀錄當前資料夾是否計算過Frequency
+    folder_counted = False
     for file in files:
         new_path = f"{file_path}/{file}"
-
         if not "." in file: #find folder under FP
             if own_sn == "":
                 names = ["200G_QSFP56_Gen3_Straight", "400G_2xQ56_TO_2xQ56_Gen3", "400G_QDD_TO_2xQ56_Ursula",
@@ -74,7 +75,10 @@ def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, rec
 
                 if data['SN'] in record_sn:
                     index = record_sn[data['SN']]
-                    all_data[index]['Testing Frequency'] += 1
+                    if not folder_counted:
+                        folder_counted = True
+                        all_data[index]['Testing Frequency'] += 1
+
                     if any("Error Message" in key for key in data):
                         all_data[index]['Error Message'] += data['Error Message']
                     if not all_data[index]['Board SN']:
@@ -189,7 +193,7 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             "Log SN": vendor_sn,
             "Part Number": part_num,
             "Script": script,
-            "Testing Frequency": 1,
+            "Testing Frequency": 0,
             "First Testing Date & Time": test_time,
             "Last Testing Date & Time" : test_time,
             "Board SN": board_sn,
@@ -204,7 +208,7 @@ def read_save_csv(sftp:paramiko.sftp_client.SFTPClient, file_path, fp:str):
             "Log SN": vendor_sn,
             "Part Number": part_num,
             "Script": script,
-            "Testing Frequency": 1,
+            "Testing Frequency": 0,
             "First Testing Date & Time": test_time,
             "Last Testing Date & Time" : test_time,
             "Board SN": board_sn,  
