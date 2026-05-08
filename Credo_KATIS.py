@@ -50,59 +50,89 @@ def find_FP_folder(sftp:paramiko.sftp_client.SFTPClient, current_path, trans): #
     sftp.close()
     trans.close()
 
-def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, record_sn, fp, own_sn = ""):
+def find_csv_file(sftp:paramiko.sftp_client.SFTPClient, file_path, all_data, record_sn, fp, own_sn="", folder_counted_token=None):
     files = sftp.listdir(file_path)
-    #紀錄當前資料夾是否計算過Frequency
-    folder_counted = False
+    
     for file in files:
         new_path = f"{file_path}/{file}"
-        if not "." in file: #find folder under FP
+        
+        # --- 處理資料夾 ---
+        if not "." in file: 
+            # 1. 決定 SN
             if own_sn == "":
                 names = ["200G_QSFP56_Gen3_Straight", "400G_2xQ56_TO_2xQ56_Gen3", "400G_QDD_TO_2xQ56_Ursula",
-                 "400G_QSFP-DD_Ursula_1PPS", "800G_2xQDD_TO_2xQDD_Ursula_1PPS"]
-                if '06_pc_test_report' in file_path and any(name in file_path for name in names):
-                    find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=file[:14])
-                else:
-                    find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=file[:15])
+                         "400G_QSFP-DD_Ursula_1PPS", "800G_2xQDD_TO_2xQDD_Ursula_1PPS"]
+                current_sn = file[:14] if '06_pc_test_report' in file_path and any(name in file_path for name in names) else file[:15]
             else:
-                find_csv_file(sftp=sftp, file_path=new_path, all_data=all_data, record_sn=record_sn, fp=fp ,own_sn=own_sn)
+                current_sn = own_sn
+            
+            # 2. 判斷是否為第一層資料夾：利用 token 是否為 None
+            if folder_counted_token is None:
+                # 第一層資料夾，發放新票
+                current_token = [False] 
+            else:
+                # 深層資料夾，沿用傳下來的票
+                current_token = folder_counted_token
+                
+            # 遞迴進入子資料夾
+            find_csv_file(sftp, new_path, all_data, record_sn, fp, own_sn=current_sn, folder_counted_token=current_token)
 
-        if file.endswith('.csv'): #find csv under FP
+        # --- 處理 CSV 檔案 ---
+        elif file.endswith('.csv'):
             data = read_save_csv(sftp, new_path, fp)
             if data:
                 if own_sn != "":
                     data['SN'] = own_sn
-
-                if data['SN'] in record_sn:
-                    index = record_sn[data['SN']]
-                    if not folder_counted:
-                        folder_counted = True
+                    
+                sn = data['SN']
+                
+                if sn in record_sn:
+                    index = record_sn[sn]
+                    
+                    # --- 精確計數邏輯 ---
+                    if folder_counted_token is None:
+                        # 情況 A：Token 是 None，代表這是第一層的 CSV，每個都算
                         all_data[index]['Testing Frequency'] += 1
-
-                    if any("Error Message" in key for key in data):
-                        all_data[index]['Error Message'] += data['Error Message']
-                    if not all_data[index]['Board SN']:
-                        all_data[index]['Board SN'] = data['Board SN']
-                    if not all_data[index]['Log SN']:
-                        all_data[index]['Log SN'] = data['Log SN']
+                    else:
+                        # 情況 B：Token 不是 None，代表這是從資料夾進來的 CSV，檢查票用過沒？
+                        if not folder_counted_token[0]: 
+                            all_data[index]['Testing Frequency'] += 1
+                            folder_counted_token[0] = True  # 標記為已使用
+                            
+                    # 更新 Error Message 與時間戳記
+                    update_data_content(all_data[index], data)
                 else:
-                    record_sn[data['SN']] = len(all_data)
-                    all_data.append(data) 
+                    # 第一次遇到這個 SN
+                    record_sn[sn] = len(all_data)
+                    data['Testing Frequency'] = 1
+                    all_data.append(data)
+                    
+                    # 如果是從資料夾進來的首筆資料，一樣要把票用掉
+                    if folder_counted_token is not None:
+                        folder_counted_token[0] = True
 
-                if any("Board SN" in key for key in data):
-                    index = record_sn[data['SN']]
-                    first1 = all_data[index]['First Testing Date & Time']
-                    first2 = data['First Testing Date & Time']
-                    last1 = all_data[index]['Last Testing Date & Time']
-                    last2 = data['Last Testing Date & Time']
-
-                    first1 = ensure_datetime(first1)
-                    first2 = ensure_datetime(first2)
-                    last1 = ensure_datetime(last1)
-                    last2 = ensure_datetime(last2)
-                    all_data[index]['First Testing Date & Time'] = pick_earlier(first1, first2)
-                    all_data[index]['Last Testing Date & Time'] = pick_later(last1, last2)
-
+def update_data_content(target, source):
+    # 1. 更新 Error Message
+    if "Error Message" in source:
+        target['Error Message'] = target.get('Error Message', "") + source['Error Message']
+    
+    # 2. 補齊 Board SN (如果原本沒有，且新資料有提供)
+    if not target.get('Board SN') and source.get('Board SN'):
+        target['Board SN'] = source['Board SN']
+        
+    # 3. 補齊 Log SN (如果原本沒有，且新資料有提供)
+    if not target.get('Log SN') and source.get('Log SN'):
+        target['Log SN'] = source['Log SN']
+    
+    # 4. 更新時間戳記
+    first1 = ensure_datetime(target['First Testing Date & Time'])
+    first2 = ensure_datetime(source['First Testing Date & Time'])
+    last1 = ensure_datetime(target['Last Testing Date & Time'])
+    last2 = ensure_datetime(source['Last Testing Date & Time'])
+    
+    target['First Testing Date & Time'] = pick_earlier(first1, first2)
+    target['Last Testing Date & Time'] = pick_later(last1, last2)
+    
 def ensure_datetime(value):
     if value is None:
         return None
